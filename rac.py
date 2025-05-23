@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import urllib2
+import urllib.request
 import ssl
 
 class RAC(object):
@@ -37,19 +37,25 @@ class RAC(object):
         return self._extract_value(data, 'CMDOUTPUT')
 
     def _make_request(self, uri, data=None):
-        req = urllib2.Request('https://%s/cgi-bin/%s' % (self.host, uri), data=self._inject_header(data))
+        payload = None
+
+        if data is not None:
+            payload = self._inject_header(data).encode('utf-8')
+        
+        req = urllib.request.Request('https://%s/cgi-bin/%s' % (self.host, uri), data=payload)
+        
         if self.sid:
             req.add_header('Cookie', 'sid=%s' % self.sid)
         if self.certfile is None:
             try:
-                return urllib2.urlopen(req).read()
-            except urllib2.URLError:
+                return urllib.request.urlopen(req).read().decode('utf-8')
+            except urllib.request.URLError:
                 ctx = ssl.create_default_context()
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
-                return urllib2.urlopen(req, context=ctx).read()
+                return urllib.request.urlopen(req, context=ctx).read().decode('utf-8')
         else:
-            return urllib2.urlopen(req, cafile=self.certfile).read()
+            return urllib.request.urlopen(req, cafile=self.certfile).read().decode('utf-8')
 
     def _login(self):
         data = '<LOGIN><REQ><USERNAME>%s</USERNAME><PASSWORD>%s</PASSWORD></REQ></LOGIN>' % (self.username, self.password)
@@ -59,6 +65,7 @@ class RAC(object):
     def _logout(self):
         self._make_request('/logout')
         self.sid = None
+
     def run_command(self, cmd):
         if self.sid is None:
             self._login()
@@ -72,6 +79,7 @@ class RAC(object):
         return self.run_command('getconfig -g %s' % group)
 
     def pxeboot(self):
+        # FIXME: multiple login sessions
         self.run_command('config -g cfgServerInfo -o cfgServerFirstBootDevice pxe')
         self.run_command('config -g cfgServerInfo -o cfgServerBootOnce 1')
         return self.powercycle()
@@ -84,3 +92,16 @@ class RAC(object):
 
     def powerup(self):
         return self.run_command('serveraction powerup')
+
+    def powerstatus(self):
+        status = self.run_command('serveraction powerstatus')
+        
+        if status == "Server power status: ON":
+            return True
+        
+        
+        if status == "Server power status: OFF":
+            return False
+        
+        raise Exception('unrecognized power status: "%s"' % status)
+

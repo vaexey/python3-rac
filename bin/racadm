@@ -13,5 +13,5 @@ parser.add_argument('-c', '--command', required=True, type=str, dest='cmd')
 rac = RAC(parser.parse_args().host,
         parser.parse_args().username, parser.parse_args().password)
 
-print rac.run_command(parser.parse_args().cmd)  
+print(rac.run_command(parser.parse_args().cmd))
 
